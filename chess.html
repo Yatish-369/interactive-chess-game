@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Chess Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 20px;
+      background-color: #4bb3dc;
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    
+    .game-info {
+      margin-bottom: 20px;
+      font-size: 18px;
+      display: flex;
+      justify-content: space-between;
+      width: 400px;
+    }
+    
+    #board {
+      width: 400px;
+      height: 400px;
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      border: 2px solid #333;
+    }
+    
+    .square {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 40px;
+      cursor: pointer;
+    }
+    
+    .white {
+      background-color: #f0d9b5;
+    }
+    
+    .black {
+      background-color: #b58863;
+    }
+    
+    .selected {
+      background-color: #58a0dc;
+    }
+    
+    .valid-move {
+      position: relative;
+    }
+    
+    .valid-move::after {
+      content: "";
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      background-color: rgba(0, 128, 0, 0.5);
+      border-radius: 50%;
+      z-index: 1;
+    }
+    
+    .capture-move::after {
+      content: "";
+      position: absolute;
+      width: 90%;
+      height: 90%;
+      border: 5px solid rgba(128, 0, 0, 0.5);
+      border-radius: 50%;
+      box-sizing: border-box;
+      z-index: 1;
+    }
+    
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <h1>Interactive Chess Game</h1>
+  <div class="game-info">
+    <span>Turn: <span id="current-turn">White</span></span>
+    <span id="game-status"></span>
+  </div>
+  <div id="board"></div>
+  <button id="reset-btn">Reset Game</button>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const board = document.getElementById('board');
+      const turnDisplay = document.getElementById('current-turn');
+      const gameStatus = document.getElementById('game-status');
+      const resetBtn = document.getElementById('reset-btn');
+      
+      let selectedPiece = null;
+      let currentTurn = 'white';
+      let gameBoard = [];
+      let validMoves = [];
+      
+      // Chess piece Unicode symbols
+      const pieces = {
+        white: {
+          king: '♔',
+          queen: '♕',
+          rook: '♖',
+          bishop: '♗',
+          knight: '♘',
+          pawn: '♙'
+        },
+        black: {
+          king: '♚',
+          queen: '♛',
+          rook: '♜',
+          bishop: '♝',
+          knight: '♞',
+          pawn: '♟'
+        }
+      };
+      
+      // Initialize the board
+      function initializeBoard() {
+        board.innerHTML = '';
+        gameBoard = [];
+        currentTurn = 'white';
+        turnDisplay.textContent = 'White';
+        gameStatus.textContent = '';
+        selectedPiece = null;
+        validMoves = [];
+        
+        // Initial board setup
+        const initialSetup = [
+          ['br', 'bn', 'bb', 'bq', 'bk', 'bb', 'bn', 'br'],
+          ['bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp'],
+          ['', '', '', '', '', '', '', ''],
+          ['', '', '', '', '', '', '', ''],
+          ['', '', '', '', '', '', '', ''],
+          ['', '', '', '', '', '', '', ''],
+          ['wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp'],
+          ['wr', 'wn', 'wb', 'wq', 'wk', 'wb', 'wn', 'wr']
+        ];
+        
+        for (let row = 0; row < 8; row++) {
+          gameBoard[row] = [];
+          for (let col = 0; col < 8; col++) {
+            const square = document.createElement('div');
+            square.className = `square ${(row + col) % 2 === 0 ? 'white' : 'black'}`;
+            square.dataset.row = row;
+            square.dataset.col = col;
+            
+            // Set piece based on initial setup
+            const pieceCode = initialSetup[row][col];
+            gameBoard[row][col] = pieceCode;
+            if (pieceCode) {
+              const color = pieceCode[0]; // 'w' or 'b'
+              const type = pieceCode[1]; // 'k', 'q', 'r', 'b', 'n', 'p'
+              
+              let pieceSymbol;
+              switch (type) {
+                case 'k': pieceSymbol = color === 'w' ? pieces.white.king : pieces.black.king; break;
+                case 'q': pieceSymbol = color === 'w' ? pieces.white.queen : pieces.black.queen; break;
+                case 'r': pieceSymbol = color === 'w' ? pieces.white.rook : pieces.black.rook; break;
+                case 'b': pieceSymbol = color === 'w' ? pieces.white.bishop : pieces.black.bishop; break;
+                case 'n': pieceSymbol = color === 'w' ? pieces.white.knight : pieces.black.knight; break;
+                case 'p': pieceSymbol = color === 'w' ? pieces.white.pawn : pieces.black.pawn; break;
+              }
+              square.textContent = pieceSymbol;
+            }
+            
+            square.addEventListener('click', handleSquareClick);
+            board.appendChild(square);
+          }
+        }
+      }
+      
+      // Handle square click
+      function handleSquareClick(event) {
+        const clickedRow = parseInt(event.target.dataset.row);
+        const clickedCol = parseInt(event.target.dataset.col);
+        
+        // If a valid move position is clicked, move the selected piece
+        if (validMoves.some(move => move.row === clickedRow && move.col === clickedCol)) {
+          movePiece(selectedPiece.row, selectedPiece.col, clickedRow, clickedCol);
+          return;
+        }
+        
+        clearHighlights();
+        
+        const pieceCode = gameBoard[clickedRow][clickedCol];
+        if (!pieceCode) return; // Clicked on empty square
+        
+        const pieceColor = pieceCode[0] === 'w' ? 'white' : 'black';
+        if (pieceColor !== currentTurn) return; // Not this player's turn
+        
+        // Select the piece and show valid moves
+        selectedPiece = { row: clickedRow, col: clickedCol, code: pieceCode };
+        highlightSquare(clickedRow, clickedCol);
+        
+        // Get and display valid moves
+        validMoves = getValidMoves(clickedRow, clickedCol, pieceCode);
+        validMoves.forEach(move => {
+          const targetSquare = document.querySelector(`[data-row="${move.row}"][data-col="${move.col}"]`);
+          if (gameBoard[move.row][move.col]) {
+            targetSquare.classList.add('capture-move');
+          } else {
+            targetSquare.classList.add('valid-move');
+          }
+        });
+      }
+      
+      // Highlight selected square
+      function highlightSquare(row, col) {
+        const square = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+        square.classList.add('selected');
+      }
+      
+      // Clear all highlights
+      function clearHighlights() {
+        document.querySelectorAll('.selected, .valid-move, .capture-move').forEach(el => {
+          el.classList.remove('selected', 'valid-move', 'capture-move');
+        });
+      }
+      
+      // Move a piece
+      function movePiece(fromRow, fromCol, toRow, toCol) {
+        const pieceCode = gameBoard[fromRow][fromCol];
+        
+        // Check for pawn promotion
+        if ((pieceCode === 'wp' && toRow === 0) || (pieceCode === 'bp' && toRow === 7)) {
+          // Always promote to queen for simplicity
+          gameBoard[toRow][toCol] = pieceCode[0] + 'q';
+        } else {
+          gameBoard[toRow][toCol] = pieceCode;
+        }
+        
+        gameBoard[fromRow][fromCol] = '';
+        
+        // Update visual board
+        const fromSquare = document.querySelector(`[data-row="${fromRow}"][data-col="${fromCol}"]`);
+        const toSquare = document.querySelector(`[data-row="${toRow}"][data-col="${toCol}"]`);
+        toSquare.textContent = fromSquare.textContent;
+        fromSquare.textContent = '';
+        
+        // Switch turns
+        currentTurn = currentTurn === 'white' ? 'black' : 'white';
+        turnDisplay.textContent = currentTurn.charAt(0).toUpperCase() + currentTurn.slice(1);
+        
+        // Clear highlights and selection
+        clearHighlights();
+        selectedPiece = null;
+        validMoves = [];
+        
+        // Check for checkmate or stalemate
+        checkGameStatus();
+      }
+      
+      // Check if the game has ended
+      function checkGameStatus() {
+        // Check if the current player has any valid moves
+        let hasValidMoves = false;
+        
+        for (let row = 0; row < 8; row++) {
+          for (let col = 0; col < 8; col++) {
+            const pieceCode = gameBoard[row][col];
+            if (pieceCode && (pieceCode[0] === 'w' && currentTurn === 'white' || 
+                             pieceCode[0] === 'b' && currentTurn === 'black')) {
+              const moves = getValidMoves(row, col, pieceCode);
+              if (moves.length > 0) {
+                hasValidMoves = true;
+                break;
+              }
+            }
+          }
+          if (hasValidMoves) break;
+        }
+        
+        if (!hasValidMoves) {
+          // Check if king is in check
+          const kingCode = currentTurn === 'white' ? 'wk' : 'bk';
+          let kingRow, kingCol;
+          
+          // Find the king
+          for (let row = 0; row < 8; row++) {
+            for (let col = 0; col < 8; col++) {
+              if (gameBoard[row][col] === kingCode) {
+                kingRow = row;
+                kingCol = col;
+                break;
+              }
+            }
+            if (kingRow !== undefined) break;
+          }
+          
+          // Check if king is in check
+          const isCheck = isSquareAttacked(kingRow, kingCol, currentTurn);
+          
+          if (isCheck) {
+            gameStatus.textContent = `Checkmate! ${currentTurn === 'white' ? 'Black' : 'White'} wins!`;
+          } else {
+            gameStatus.textContent = 'Stalemate! Draw!';
+          }
+        }
+      }
+      
+      // Check if a square is under attack by the opponent
+      function isSquareAttacked(row, col, playerColor) {
+        const opponentColor = playerColor === 'white' ? 'b' : 'w';
+        
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            const pieceCode = gameBoard[r][c];
+            if (pieceCode && pieceCode[0] === opponentColor) {
+              const moves = getPieceMoves(r, c, pieceCode, true);
+              if (moves.some(move => move.row === row && move.col === col)) {
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      }
+      
+      // Get valid moves for a piece
+      function getValidMoves(row, col, pieceCode) {
+        const possibleMoves = getPieceMoves(row, col, pieceCode);
+        
+        // Filter moves that would leave the king in check
+        return possibleMoves.filter(move => {
+          // Make temporary move
+          const originalPiece = gameBoard[move.row][move.col];
+          gameBoard[move.row][move.col] = pieceCode;
+          gameBoard[row][col] = '';
+          
+          // Find king
+          const playerColor = pieceCode[0] === 'w' ? 'white' : 'black';
+          const kingCode = playerColor === 'white' ? 'wk' : 'bk';
+          let kingRow, kingCol;
+          
+          // If the piece being moved is the king, use new position
+          if (pieceCode === kingCode) {
+            kingRow = move.row;
+            kingCol = move.col;
+          } else {
+            // Find the king
+            for (let r = 0; r < 8; r++) {
+              for (let c = 0; c < 8; c++) {
+                if (gameBoard[r][c] === kingCode) {
+                  kingRow = r;
+                  kingCol = c;
+                  break;
+                }
+              }
+              if (kingRow !== undefined) break;
+            }
+          }
+          
+          // Check if king is in check after move
+          const inCheck = isSquareAttacked(kingRow, kingCol, playerColor);
+          
+          // Undo temporary move
+          gameBoard[row][col] = pieceCode;
+          gameBoard[move.row][move.col] = originalPiece;
+          
+          return !inCheck;
+        });
+      }
+      
+      // Get all possible moves for a piece without considering check
+      function getPieceMoves(row, col, pieceCode, ignoreKing = false) {
+        const pieceType = pieceCode[1];
+        const pieceColor = pieceCode[0] === 'w' ? 'white' : 'black';
+        const opponentColor = pieceColor === 'white' ? 'b' : 'w';
+        const moves = [];
+        
+        switch (pieceType) {
+          case 'p': // Pawn
+            const direction = pieceColor === 'white' ? -1 : 1;
+            const startRow = pieceColor === 'white' ? 6 : 1;
+            
+            // Move forward one square
+            if (isInBounds(row + direction, col) && !gameBoard[row + direction][col]) {
+              moves.push({ row: row + direction, col: col });
+              
+              // Move forward two squares from starting position
+              if (row === startRow && !gameBoard[row + 2 * direction][col]) {
+                moves.push({ row: row + 2 * direction, col: col });
+              }
+            }
+            
+            // Capture diagonally
+            for (let offset of [-1, 1]) {
+              if (isInBounds(row + direction, col + offset)) {
+                const targetPiece = gameBoard[row + direction][col + offset];
+                if (targetPiece && targetPiece[0] === opponentColor) {
+                  moves.push({ row: row + direction, col: col + offset });
+                }
+              }
+            }
+            break;
+            
+          case 'r': // Rook
+            addLineMoves(row, col, pieceColor, moves, 1, 0); // horizontal right
+            addLineMoves(row, col, pieceColor, moves, -1, 0); // horizontal left
+            addLineMoves(row, col, pieceColor, moves, 0, 1); // vertical down
+            addLineMoves(row, col, pieceColor, moves, 0, -1); // vertical up
+            break;
+            
+          case 'n': // Knight
+            const knightMoves = [
+              { rowOffset: -2, colOffset: -1 },
+              { rowOffset: -2, colOffset: 1 },
+              { rowOffset: -1, colOffset: -2 },
+              { rowOffset: -1, colOffset: 2 },
+              { rowOffset: 1, colOffset: -2 },
+              { rowOffset: 1, colOffset: 2 },
+              { rowOffset: 2, colOffset: -1 },
+              { rowOffset: 2, colOffset: 1 }
+            ];
+            
+            for (const move of knightMoves) {
+              const newRow = row + move.rowOffset;
+              const newCol = col + move.colOffset;
+              
+              if (isInBounds(newRow, newCol)) {
+                const targetPiece = gameBoard[newRow][newCol];
+                if (!targetPiece || targetPiece[0] === opponentColor) {
+                  moves.push({ row: newRow, col: newCol });
+                }
+              }
+            }
+            break;
+            
+          case 'b': // Bishop
+            addLineMoves(row, col, pieceColor, moves, 1, 1); // diagonal down-right
+            addLineMoves(row, col, pieceColor, moves, 1, -1); // diagonal down-left
+            addLineMoves(row, col, pieceColor, moves, -1, 1); // diagonal up-right
+            addLineMoves(row, col, pieceColor, moves, -1, -1); // diagonal up-left
+            break;
+            
+          case 'q': // Queen (combined rook and bishop moves)
+            addLineMoves(row, col, pieceColor, moves, 1, 0);
+            addLineMoves(row, col, pieceColor, moves, -1, 0);
+            addLineMoves(row, col, pieceColor, moves, 0, 1);
+            addLineMoves(row, col, pieceColor, moves, 0, -1);
+            addLineMoves(row, col, pieceColor, moves, 1, 1);
+            addLineMoves(row, col, pieceColor, moves, 1, -1);
+            addLineMoves(row, col, pieceColor, moves, -1, 1);
+            addLineMoves(row, col, pieceColor, moves, -1, -1);
+            break;
+            
+          case 'k': // King
+            const kingMoves = [
+              { rowOffset: -1, colOffset: -1 },
+              { rowOffset: -1, colOffset: 0 },
+              { rowOffset: -1, colOffset: 1 },
+              { rowOffset: 0, colOffset: -1 },
+              { rowOffset: 0, colOffset: 1 },
+              { rowOffset: 1, colOffset: -1 },
+              { rowOffset: 1, colOffset: 0 },
+              { rowOffset: 1, colOffset: 1 }
+            ];
+            
+            for (const move of kingMoves) {
+              const newRow = row + move.rowOffset;
+              const newCol = col + move.colOffset;
+              
+              if (isInBounds(newRow, newCol)) {
+                const targetPiece = gameBoard[newRow][newCol];
+                if (!targetPiece || targetPiece[0] === opponentColor) {
+                  // For performance, only check king attacks when necessary
+                  if (ignoreKing || !isSquareAttacked(newRow, newCol, pieceColor)) {
+                    moves.push({ row: newRow, col: newCol });
+                  }
+                }
+              }
+            }
+            break;
+        }
+        
+        return moves;
+      }
+      
+      // Add moves along a line (used for rook, bishop, queen)
+      function addLineMoves(row, col, pieceColor, moves, rowIncrement, colIncrement) {
+        const opponentColor = pieceColor === 'white' ? 'b' : 'w';
+        let currentRow = row + rowIncrement;
+        let currentCol = col + colIncrement;
+        
+        while (isInBounds(currentRow, currentCol)) {
+          const targetPiece = gameBoard[currentRow][currentCol];
+          
+          if (!targetPiece) {
+            // Empty square, can move there
+            moves.push({ row: currentRow, col: currentCol });
+          } else if (targetPiece[0] === opponentColor) {
+            // Capture opponent's piece
+            moves.push({ row: currentRow, col: currentCol });
+            break; // Stop after capture
+          } else {
+            // Own piece, can't move further
+            break;
+          }
+          
+          currentRow += rowIncrement;
+          currentCol += colIncrement;
+        }
+      }
+      
+      // Check if position is within board bounds
+      function isInBounds(row, col) {
+        return row >= 0 && row < 8 && col >= 0 && col < 8;
+      }
+      
+      // Reset game
+      resetBtn.addEventListener('click', initializeBoard);
+      
+      // Initialize the game
+      initializeBoard();
+    });
+  </script>
+</body>
+</html>

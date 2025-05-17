@@ -18,5 +18,3 @@ A web-based interactive chess game built using HTML, CSS, and JavaScript. This p
 - **HTML5**
 - **CSS3**
 - **JavaScript**
-
-## 🚀 Getting Started
